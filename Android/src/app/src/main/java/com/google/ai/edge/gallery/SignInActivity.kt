@@ -3,22 +3,27 @@ package com.google.ai.edge.gallery
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
-import android.widget.Button
-import android.widget.LinearLayout
 import android.widget.Toast
+import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
+import dagger.hilt.android.AndroidEntryPoint
 
+@AndroidEntryPoint
 class SignInActivity : AppCompatActivity() {
 
     private lateinit var auth: FirebaseAuth
     private lateinit var googleSignInClient: GoogleSignInClient
+    private val viewModel: AuthViewModel by viewModels()
 
     private val signInLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -40,7 +45,6 @@ class SignInActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_sign_in)
 
         auth = FirebaseAuth.getInstance()
 
@@ -51,9 +55,44 @@ class SignInActivity : AppCompatActivity() {
 
         googleSignInClient = GoogleSignIn.getClient(this, gso)
 
-        findViewById<LinearLayout>(R.id.btnGoogleSignIn).setOnClickListener {
-            val signInIntent = googleSignInClient.signInIntent
-            signInLauncher.launch(signInIntent)
+        setContent {
+            // Collect the sign-in state
+            val signInState by viewModel.signInState.collectAsState()
+
+            // Render the sign-in screen
+            SignInScreen(
+                onGoogleSignInClick = {
+                    val signInIntent = googleSignInClient.signInIntent
+                    signInLauncher.launch(signInIntent)
+                },
+                onEmailSignInClick = { email, password ->
+                    viewModel.signInWithEmailAndPassword(email, password)
+                },
+                onSignUpClick = {
+                    // Navigate to the sign-up screen
+                    startActivity(Intent(this, SignUpActivity::class.java))
+                }
+            )
+
+            // Handle the sign-in state
+            when (signInState) {
+                is AuthState.Success -> {
+                    Toast.makeText(this, (signInState as AuthState.Success).message, Toast.LENGTH_SHORT).show()
+                    // Navigate to MainActivity after successful sign-in
+                    startActivity(Intent(this, MainActivity::class.java))
+                    finish()
+                    // Reset the state to avoid showing the success message again on configuration change
+                    viewModel.resetSignInState()
+                }
+                is AuthState.Error -> {
+                    Toast.makeText(this, (signInState as AuthState.Error).message, Toast.LENGTH_LONG).show()
+                    // Reset the error state
+                    viewModel.resetSignInState()
+                }
+                else -> {
+                    // No action needed for Idle or Loading states
+                }
+            }
         }
     }
 
