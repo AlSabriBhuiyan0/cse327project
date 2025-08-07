@@ -1,11 +1,11 @@
-# Google AI Edge Gallery ✨
+# HappyChat AI ✨
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![GitHub release (latest by date)](https://img.shields.io/github/v/release/google-ai-edge/gallery)](https://github.com/google-ai-edge/gallery/releases)
 
-**Explore, Experience, and Evaluate the Future of On-Device Generative AI with Google AI Edge.**
+**Explore, Experience, and Evaluate the Future of On-Device Generative AI with HappyChat AI.**
 
-The Google AI Edge Gallery is an experimental app that puts the power of cutting-edge Generative AI models directly into your hands, running entirely on your Android *(available now)* and iOS *(coming soon)* devices. Dive into a world of creative and practical AI use cases, all running locally, without needing an internet connection once the model is loaded. Experiment with different models, chat, ask questions with images, explore prompts, and more!
+HappyChat AI is an experimental app that puts the power of cutting-edge Generative AI models directly into your hands, running entirely on your Android *(available now)* and iOS *(coming soon)* devices. Dive into a world of creative and practical AI use cases, all running locally, without needing an internet connection once the model is loaded. Experiment with different models, chat, ask questions with images, explore prompts, and more!
 
 **Overview**
 <img width="1532" alt="Overview" src="https://github.com/user-attachments/assets/4f2702d7-91a0-4eb3-aa76-58bc8e7089c6" />
