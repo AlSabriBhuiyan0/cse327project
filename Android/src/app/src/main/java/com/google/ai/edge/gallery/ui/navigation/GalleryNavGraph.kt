@@ -30,6 +30,8 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.google.ai.edge.gallery.AuthViewModel
+import com.google.ai.edge.gallery.SignUpScreen
 import com.google.ai.edge.gallery.data.Model
 import com.google.ai.edge.gallery.data.TASK_LLM_ASK_AUDIO
 import com.google.ai.edge.gallery.data.TASK_LLM_ASK_IMAGE
@@ -38,11 +40,8 @@ import com.google.ai.edge.gallery.data.TASK_LLM_PROMPT_LAB
 import com.google.ai.edge.gallery.data.Task
 import com.google.ai.edge.gallery.data.TaskType
 import com.google.ai.edge.gallery.data.getModelByName
-import com.google.ai.edge.gallery.ui.auth.AuthViewModel
 import com.google.ai.edge.gallery.ui.auth.SignInDestination
 import com.google.ai.edge.gallery.ui.auth.SignInScreen
-import com.google.ai.edge.gallery.ui.auth.SignUpDestination
-import com.google.ai.edge.gallery.ui.auth.SignUpScreen
 import com.google.ai.edge.gallery.ui.home.HomeScreen
 import com.google.ai.edge.gallery.ui.llmchat.LlmAskAudioDestination
 import com.google.ai.edge.gallery.ui.llmchat.LlmAskAudioScreen
