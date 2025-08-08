@@ -38,11 +38,6 @@ import com.google.ai.edge.gallery.data.TASK_LLM_PROMPT_LAB
 import com.google.ai.edge.gallery.data.Task
 import com.google.ai.edge.gallery.data.TaskType
 import com.google.ai.edge.gallery.data.getModelByName
-import com.google.ai.edge.gallery.ui.auth.AuthViewModel
-import com.google.ai.edge.gallery.ui.auth.SignInDestination
-import com.google.ai.edge.gallery.ui.auth.SignInScreen
-import com.google.ai.edge.gallery.ui.auth.SignUpDestination
-import com.google.ai.edge.gallery.ui.auth.SignUpScreen
 import com.google.ai.edge.gallery.ui.home.HomeScreen
 import com.google.ai.edge.gallery.ui.llmchat.LlmAskAudioDestination
 import com.google.ai.edge.gallery.ui.llmchat.LlmAskAudioScreen
@@ -178,32 +173,6 @@ fun GalleryNavHost(
   ) {
     // Placeholder root screen
     composable(route = ROUTE_PLACEHOLDER) { Text("") }
-
-    // Authentication screens
-    composable(
-      route = SignInDestination.route,
-      enterTransition = { slideEnter() },
-      exitTransition = { slideExit() },
-    ) {
-      val viewModel: AuthViewModel = hiltViewModel()
-      SignInScreen(
-        onGoogleSignInClick = { /* This will be handled in the activity */ },
-        onEmailSignInClick = { email, password -> /* This will be handled in the activity */ },
-        onSignUpClick = { navController.navigate(SignUpDestination.route) }
-      )
-    }
-
-    composable(
-      route = SignUpDestination.route,
-      enterTransition = { slideEnter() },
-      exitTransition = { slideExit() },
-    ) {
-      val viewModel: AuthViewModel = hiltViewModel()
-      SignUpScreen(
-        onSignUpClick = { email, password -> /* This will be handled in the activity */ },
-        onSignInClick = { navController.navigateUp() }
-      )
-    }
 
     // LLM chat demos.
     composable(

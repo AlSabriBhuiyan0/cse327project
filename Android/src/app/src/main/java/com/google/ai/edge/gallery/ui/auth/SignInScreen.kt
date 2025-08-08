@@ -61,7 +61,7 @@ fun SignInScreen(
 
         // App Title
         Text(
-            text = "Welcome to HappyChat AI",
+            text = "Welcome to AI Chat Bot",
             fontSize = 24.sp,
             fontWeight = FontWeight.Bold,
             color = Color(0xFF212121),

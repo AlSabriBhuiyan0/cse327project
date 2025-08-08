@@ -16,11 +16,12 @@ class SplashActivity : AppCompatActivity() {
             val intent = if (user != null) {
                 Intent(this, MainActivity::class.java)
             } else {
-                // Direct users to the new AuthActivity instead of SignInActivity
-                Intent(this, AuthActivity::class.java)
+                Intent(this, SignInActivity::class.java)
             }
             startActivity(intent)
             finish()
         }, 1500)
+
     }
 }
+
