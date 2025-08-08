@@ -183,8 +183,16 @@ fun GalleryNavHost(
     composable(route = SignInDestination.route) {
       val authViewModel: AuthViewModel = hiltViewModel()
       SignInScreen(
-        navController = navController,
-        authViewModel = authViewModel
+        onGoogleSignInClick = {
+            // Call the Google sign-in function from the ViewModel
+            authViewModel.signInWithGoogle()
+        },
+        onEmailSignInClick = { email, password ->
+            authViewModel.signInWithEmailAndPassword(email, password)
+        },
+        onSignUpClick = {
+            navController.navigate(SignUpDestination.route)
+        }
       )
     }
 
