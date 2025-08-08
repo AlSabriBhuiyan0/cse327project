@@ -1,15 +1,27 @@
-                .padding(top = 16.dp)
-                .clickable { onSignInClick() }
-        )
-    }
-}
+package com.google.ai.edge.gallery
+
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.NavHostController
+import com.google.ai.edge.gallery.ui.auth.SignInDestination
 
 @Composable
 fun SignUpScreen(
-    onSignUpClick: (String, String) -> Unit,
-    onSignInClick: () -> Unit
+    navController: NavHostController,
+    authViewModel: AuthViewModel
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -31,7 +43,7 @@ fun SignUpScreen(
             color = Color(0xFF212121),
             modifier = Modifier.padding(bottom = 32.dp)
         )
-package com.google.ai.edge.gallery
+
         // Email Field
         OutlinedTextField(
             value = email,
@@ -97,8 +109,9 @@ package com.google.ai.edge.gallery
         // Sign Up Button
         Button(
             onClick = {
-                if (passwordsMatch && password == confirmPassword && password.isNotEmpty() && email.isNotEmpty()) {
-                    onSignUpClick(email, password)
+                if (passwordsMatch && password.isNotEmpty() && email.isNotEmpty()) {
+                    // Call the ViewModel function directly
+                    authViewModel.createUserWithEmailAndPassword(email, password)
                 }
             },
             enabled = passwordsMatch && password.isNotEmpty() && confirmPassword.isNotEmpty() && email.isNotEmpty(),
@@ -116,18 +129,14 @@ package com.google.ai.edge.gallery
             color = Color(0xFF1976D2),
             textDecoration = TextDecoration.Underline,
             modifier = Modifier
-
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextDecoration
-
+                .padding(top = 16.dp)
+                .clickable {
+                    // Use the NavController to navigate to the sign in screen
+                    navController.navigate(SignInDestination.route) {
+                        popUpTo(navController.graph.startDestinationId)
+                        launchSingleTop = true
+                    }
+                }
+        )
+    }
+}
