@@ -1,7 +1,7 @@
 package com.google.ai.edge.gallery.data
 
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Logout
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -40,7 +40,7 @@ fun GalleryTopAppBar(
         IconButton(onClick = action.actionFn) {
           when (action.actionType) {
             AppBarActionType.APP_SETTING -> Icon(Icons.Filled.Settings, contentDescription = "Settings")
-            AppBarActionType.SIGN_OUT -> Icon(Icons.Filled.Logout, contentDescription = "Sign Out")
+            AppBarActionType.SIGN_OUT -> Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = "Sign Out")
             AppBarActionType.NO_ACTION -> {} // No-op or replace with real UI
             AppBarActionType.DOWNLOAD_MANAGER -> {} // Implement as needed
             AppBarActionType.MODEL_SELECTOR -> {}    // Implement as needed

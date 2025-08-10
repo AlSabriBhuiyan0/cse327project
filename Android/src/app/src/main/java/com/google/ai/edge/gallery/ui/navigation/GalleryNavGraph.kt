@@ -1,5 +1,4 @@
 package com.google.ai.edge.gallery.ui.navigation
-
 import android.util.Log
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.AnimatedVisibility
@@ -30,8 +29,6 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
-import com.google.ai.edge.gallery.AuthViewModel
-import com.google.ai.edge.gallery.SignUpScreen
 import com.google.ai.edge.gallery.data.Model
 import com.google.ai.edge.gallery.data.TASK_LLM_ASK_AUDIO
 import com.google.ai.edge.gallery.data.TASK_LLM_ASK_IMAGE
@@ -40,8 +37,12 @@ import com.google.ai.edge.gallery.data.TASK_LLM_PROMPT_LAB
 import com.google.ai.edge.gallery.data.Task
 import com.google.ai.edge.gallery.data.TaskType
 import com.google.ai.edge.gallery.data.getModelByName
-import com.google.ai.edge.gallery.ui.auth.SignInDestination
+import com.google.ai.edge.gallery.AuthViewModel
 import com.google.ai.edge.gallery.ui.auth.SignInScreen
+import com.google.ai.edge.gallery.SignUpScreen
+import androidx.compose.ui.platform.LocalContext
+import android.content.Intent
+import com.google.ai.edge.gallery.SignInActivity
 import com.google.ai.edge.gallery.ui.home.HomeScreen
 import com.google.ai.edge.gallery.ui.llmchat.LlmAskAudioDestination
 import com.google.ai.edge.gallery.ui.llmchat.LlmAskAudioScreen
@@ -57,6 +58,10 @@ import com.google.ai.edge.gallery.ui.llmsingleturn.LlmSingleTurnScreen
 import com.google.ai.edge.gallery.ui.llmsingleturn.LlmSingleTurnViewModel
 import com.google.ai.edge.gallery.ui.modelmanager.ModelManager
 import com.google.ai.edge.gallery.ui.modelmanager.ModelManagerViewModel
+import com.google.ai.edge.gallery.ui.geofence.GeofenceManagementDestination
+import com.google.ai.edge.gallery.ui.geofence.GeofenceManagementScreen
+import com.google.ai.edge.gallery.ui.bridge.MessageBridgeDestination
+import com.google.ai.edge.gallery.ui.bridge.MessageBridgeScreen
 
 // Auth screen routes
 object SignInDestination {
@@ -142,6 +147,12 @@ fun GalleryNavHost(
       pickedTask = task
       showModelManager = true
     },
+    navigateToGeofenceManagement = {
+      navController.navigate(GeofenceManagementDestination.route)
+    },
+    navigateToMessageBridge = {
+      navController.navigate(MessageBridgeDestination.route)
+    }
   )
 
   // Model manager.
@@ -181,10 +192,11 @@ fun GalleryNavHost(
     // Auth screens
     composable(route = SignInDestination.route) {
       val authViewModel: AuthViewModel = hiltViewModel()
+      val context = LocalContext.current
       SignInScreen(
         onGoogleSignInClick = {
-            // Call the Google sign-in function from the ViewModel
-            authViewModel.signInWithGoogle()
+            // Launch SignInActivity to handle Google sign-in flow and Firebase auth
+            context.startActivity(Intent(context, SignInActivity::class.java))
         },
         onEmailSignInClick = { email, password ->
             authViewModel.signInWithEmailAndPassword(email, password)
@@ -281,6 +293,28 @@ fun GalleryNavHost(
           navigateUp = { navController.navigateUp() },
         )
       }
+    }
+
+    // Geofence management.
+    composable(
+      route = GeofenceManagementDestination.route,
+      enterTransition = { slideEnter() },
+      exitTransition = { slideExit() },
+    ) {
+      GeofenceManagementScreen(
+        navigateUp = { navController.navigateUp() },
+      )
+    }
+
+    // Message bridge.
+    composable(
+      route = MessageBridgeDestination.route,
+      enterTransition = { slideEnter() },
+      exitTransition = { slideExit() },
+    ) {
+      MessageBridgeScreen(
+        navigateUp = { navController.navigateUp() },
+      )
     }
   }
 

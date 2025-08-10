@@ -7,6 +7,7 @@ import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.auth.FirebaseAuthWeakPasswordException
+import com.google.firebase.auth.GoogleAuthProvider
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -90,25 +91,31 @@ class AuthViewModel @Inject constructor(
             }
         }
     }
-
+    
     /**
-     * Signs in a user with Google
-     * This method initiates the Google Sign-In process
+     * Signs in a user with Google by using the ID token obtained from Google Sign-In
+     *
+     * @param idToken ID token obtained from Google Sign-In
      */
-    fun signInWithGoogle() {
+    fun signInWithGoogle(idToken: String) {
         viewModelScope.launch {
             try {
                 _signInState.value = AuthState.Loading
+                
+                // Create a GoogleAuthProvider credential with the token
+                val credential = GoogleAuthProvider.getCredential(idToken, null)
 
-                // Note: The actual Google Sign-In process will be initiated by the activity/fragment
-                // This method primarily updates state and prepares for authentication
+                // Sign in to Firebase with the Google credential
+                auth.signInWithCredential(credential).await()
 
-                // The actual authentication with Firebase using the Google credentials
-                // will happen in the activity after getting the result from the Google Sign-In intent
-
-                _signInState.value = AuthState.Info("Starting Google Sign-In")
+                _signInState.value = AuthState.Success("Signed in successfully with Google")
             } catch (e: Exception) {
-                _signInState.value = AuthState.Error("Google sign in failed: ${e.message}")
+                val message = when (e) {
+                    is FirebaseAuthInvalidCredentialsException -> "Invalid Google credentials. Please try again."
+                    is FirebaseAuthInvalidUserException -> "Your account could not be found."
+                    else -> "Google sign in failed: ${e.message ?: "Unknown error"}"
+                }
+                _signInState.value = AuthState.Error(message)
             }
         }
     }

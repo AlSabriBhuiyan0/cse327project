@@ -1,5 +1,3 @@
-
-
 plugins {
   alias(libs.plugins.android.application)
   // Note: set apply to true to enable google-services (requires google-services.json).
@@ -38,11 +36,11 @@ android {
     }
   }
   compileOptions {
-    sourceCompatibility = JavaVersion.VERSION_11
-    targetCompatibility = JavaVersion.VERSION_11
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
   }
   kotlinOptions {
-    jvmTarget = "11"
+    jvmTarget = "17"
     freeCompilerArgs += "-Xcontext-receivers"
   }
   buildFeatures {
@@ -87,6 +85,9 @@ dependencies {
   implementation(platform(libs.firebase.bom))
   implementation(libs.firebase.analytics)
   implementation(libs.firebase.auth.ktx)
+  implementation("com.google.firebase:firebase-messaging:23.3.1")
+  implementation("com.google.firebase:firebase-messaging-ktx:23.3.1")
+  implementation(libs.google.identity.googleid)
   kapt(libs.hilt.android.compiler)
   testImplementation(libs.junit)
   androidTestImplementation(libs.androidx.junit)
@@ -96,16 +97,18 @@ dependencies {
   androidTestImplementation(libs.hilt.android.testing)
   debugImplementation(libs.androidx.ui.tooling)
   debugImplementation(libs.androidx.ui.test.manifest)
-//  implementation ("com.google.firebase:firebase-auth-ktx")
-//  implementation ("com.google.android.gms:play-services-auth:21.3.0")
-//  implementation(platform("com.google.firebase:firebase-bom:32.7.0"))
-//  implementation("com.google.firebase:firebase-analytics")
-//  implementation("io.coil-kt:coil-compose:2.5.0")
   implementation("com.google.android.gms:play-services-auth:20.7.0")
+  implementation("com.google.android.gms:play-services-location:21.2.0")
+  // TDLib for Telegram API access
+  implementation("org.drinkless.td:tdlib:1.8.0")
+  // Gmail API client libraries
+  implementation("com.google.api-client:google-api-client-android:2.2.0")
+  implementation("com.google.oauth-client:google-oauth-client-jetty:1.34.1")
+  implementation("com.google.apis:google-api-services-gmail:v1-rev20220404-2.0.0")
+  implementation("javax.mail:mail:1.4.7")
+  // Firebase Cloud Messaging
+  implementation("com.google.firebase:firebase-messaging-ktx:23.3.1")
 
-
-  implementation(platform("com.google.firebase:firebase-bom:33.16.0"))
-  implementation("com.google.firebase:firebase-analytics")
 
 }
 

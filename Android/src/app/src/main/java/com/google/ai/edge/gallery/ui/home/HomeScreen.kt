@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -33,6 +34,8 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.NoteAdd
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.rounded.Error
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -110,6 +113,8 @@ object HomeScreenDestination {
 fun HomeScreen(
   modelManagerViewModel: ModelManagerViewModel,
   navigateToTaskScreen: (Task) -> Unit,
+  navigateToGeofenceManagement: () -> Unit,
+  navigateToMessageBridge: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
   val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
@@ -185,13 +190,92 @@ fun HomeScreen(
     },*/
   ) { innerPadding ->
     Box(contentAlignment = Alignment.BottomCenter, modifier = Modifier.fillMaxSize()) {
-      TaskList(
-        tasks = uiState.tasks,
-        navigateToTaskScreen = navigateToTaskScreen,
-        loadingModelAllowlist = uiState.loadingModelAllowlist,
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = innerPadding,
-      )
+      Column(
+        modifier = Modifier.fillMaxSize()
+      ) {
+        // Geofence Management Button
+        Card(
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .clickable { navigateToGeofenceManagement() },
+          colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer
+          )
+        ) {
+          Row(
+            modifier = Modifier
+              .fillMaxWidth()
+              .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            Icon(
+              imageVector = Icons.Filled.LocationOn,
+              contentDescription = "Geofence",
+              tint = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Column {
+              Text(
+                text = "Geofence Management",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+              )
+              Text(
+                text = "Add and manage location alerts",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+              )
+            }
+          }
+        }
+
+        // Message Bridge Button
+        Card(
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .clickable { navigateToMessageBridge() },
+          colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer
+          )
+        ) {
+          Row(
+            modifier = Modifier
+              .fillMaxWidth()
+              .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            Icon(
+              imageVector = Icons.Filled.SwapHoriz,
+              contentDescription = "Message Bridge",
+              tint = MaterialTheme.colorScheme.secondary
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Column {
+              Text(
+                text = "Telegram-Gmail Bridge",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+              )
+              Text(
+                text = "Connect and forward messages between platforms",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+              )
+            }
+          }
+        }
+
+        // Task list
+        TaskList(
+          tasks = uiState.tasks,
+          navigateToTaskScreen = navigateToTaskScreen,
+          loadingModelAllowlist = uiState.loadingModelAllowlist,
+          modifier = Modifier.weight(1f),
+          contentPadding = innerPadding,
+        )
+      }
 
       SnackbarHost(hostState = snackbarHostState, modifier = Modifier.padding(bottom = 32.dp))
     }
@@ -202,13 +286,22 @@ fun HomeScreen(
     SettingsDialog(
       curThemeOverride = modelManagerViewModel.readThemeOverride(),
       modelManagerViewModel = modelManagerViewModel,
-      onDismissed = { showSettingsDialog = false },
+      onDismissed = {
+        // Using this value to dismiss the dialog
+        showSettingsDialog = false
+      },
     )
   }
 
   // Import model bottom sheet.
   if (showImportModelSheet) {
-    ModalBottomSheet(onDismissRequest = { showImportModelSheet = false }, sheetState = sheetState) {
+    ModalBottomSheet(
+      onDismissRequest = {
+        // Using this value to dismiss the sheet
+        showImportModelSheet = false
+      },
+      sheetState = sheetState
+    ) {
       Text(
         "Import model",
         style = MaterialTheme.typography.titleLarge,
@@ -220,6 +313,7 @@ fun HomeScreen(
             coroutineScope.launch {
               // Give it sometime to show the click effect.
               delay(200)
+              // Using this value to hide the sheet
               showImportModelSheet = false
 
               // Show file picker.
@@ -251,9 +345,13 @@ fun HomeScreen(
     selectedLocalModelFileUri.value?.let { uri ->
       ModelImportDialog(
         uri = uri,
-        onDismiss = { showImportDialog = false },
+        onDismiss = {
+          // Using this value to dismiss the dialog
+          showImportDialog = false
+        },
         onDone = { info ->
           selectedImportedModelInfo.value = info
+          // Using this value to hide the dialog
           showImportDialog = false
           showImportingDialog = true
         },
@@ -268,9 +366,13 @@ fun HomeScreen(
         ModelImportingDialog(
           uri = uri,
           info = info,
-          onDismiss = { showImportingDialog = false },
+          onDismiss = {
+            // Using this value to dismiss the dialog
+            showImportingDialog = false
+          },
           onDone = {
             modelManagerViewModel.addImportedLlmModel(info = it)
+            // Using this value to hide the dialog
             showImportingDialog = false
 
             // Show a snack bar for successful import.
@@ -284,11 +386,17 @@ fun HomeScreen(
   // Alert dialog for unsupported file type.
   if (showUnsupportedFileTypeDialog) {
     AlertDialog(
-      onDismissRequest = { showUnsupportedFileTypeDialog = false },
+      onDismissRequest = {
+        // Using this value to dismiss the dialog
+        showUnsupportedFileTypeDialog = false
+      },
       title = { Text("Unsupported file type") },
       text = { Text("Only \".task\" file type is supported.") },
       confirmButton = {
-        Button(onClick = { showUnsupportedFileTypeDialog = false }) {
+        Button(onClick = {
+          // Using this value to dismiss the dialog
+          showUnsupportedFileTypeDialog = false
+        }) {
           Text(stringResource(R.string.ok))
         }
       },
@@ -323,7 +431,8 @@ private fun TaskList(
   val screenWidthDp = remember { with(density) { windowInfo.containerSize.width.toDp() } }
   val screenHeightDp = remember { with(density) { windowInfo.containerSize.height.toDp() } }
   val sizeFraction = remember { ((screenWidthDp - 360.dp) / (410.dp - 360.dp)).coerceIn(0f, 1f) }
-  val linkColor = MaterialTheme.customColors.linkColor
+  // Removing unused variable
+  // val linkColor = MaterialTheme.customColors.linkColor
 
   val introText = buildAnnotatedString {
     append("Welcome to AI Chat Bot! Explore AI with your amazing thoughts ")
@@ -454,9 +563,13 @@ private fun TaskCard(
     if (curModelCountLabel.isEmpty()) {
       curModelCountLabel = modelCountLabel
     } else {
+      // This state value is used by the animation system
+      @Suppress("UNUSED_VALUE")
       modelCountLabelVisible = false
       delay(TASK_COUNT_ANIMATION_DURATION.toLong())
       curModelCountLabel = modelCountLabel
+      // This state value is used by the animation system
+      @Suppress("UNUSED_VALUE")
       modelCountLabelVisible = true
     }
   }
@@ -507,4 +620,3 @@ fun getFileName(context: Context, uri: Uri): String? {
   }
   return null
 }
-

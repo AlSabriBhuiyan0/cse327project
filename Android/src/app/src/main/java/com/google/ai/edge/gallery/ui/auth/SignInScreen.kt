@@ -131,11 +131,7 @@ fun SignInScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center
             ) {
-                Image(
-                    painter = painterResource(id = R.drawable.ic_google),
-                    contentDescription = "Google Icon",
-                    modifier = Modifier.size(24.dp)
-                )
+                // Icon removed to avoid missing resource issues in certain builds
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Sign in with Google")
             }
