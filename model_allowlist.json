@@ -9,6 +9,9 @@
       "estimatedPeakMemoryInBytes": 5905580032,
       "version": "20250520",
       "llmSupportImage": true,
+      "requiresAuth": true,
+      "authProvider": "huggingface",
+      "downloadUrl": "https://huggingface.co/google/gemma-3n-E2B-it-litert-preview/resolve/main/gemma-3n-E2B-it-int4.task",
       "defaultConfig": {
         "topK": 64,
         "topP": 0.95,
@@ -27,6 +30,9 @@
       "estimatedPeakMemoryInBytes": 6979321856,
       "version": "20250520",
       "llmSupportImage": true,
+      "requiresAuth": true,
+      "authProvider": "huggingface",
+      "downloadUrl": "https://huggingface.co/google/gemma-3n-E4B-it-litert-preview/resolve/main/gemma-3n-E4B-it-int4.task",
       "defaultConfig": {
         "topK": 64,
         "topP": 0.95,

@@ -97,6 +97,12 @@ data class ModelManagerUiState(
 
   /** A map that tracks the download status of each model, indexed by model name. */
   val modelDownloadStatus: Map<String, ModelDownloadStatus>,
+  
+  /** Whether to show the Hugging Face authentication dialog. */
+  val showHuggingFaceAuthDialog: Boolean = false,
+  
+  /** The model that requires authentication. */
+  val pendingAuthModel: Model? = null,
 
   /** A map that tracks the initialization status of each model, indexed by model name. */
   val modelInitializationStatus: Map<String, ModelInitializationStatus>,
@@ -131,12 +137,13 @@ constructor(
   private val dataStoreRepository: DataStoreRepository,
   private val lifecycleProvider: AppLifecycleProvider,
   @ApplicationContext private val context: Context,
+  @Inject private val huggingFaceAuthHelper: HuggingFaceAuthHelper,
 ) : ViewModel() {
   private val externalFilesDir = context.getExternalFilesDir(null)
   private val inProgressWorkInfos: List<AGWorkInfo> =
     downloadRepository.getEnqueuedOrRunningWorkInfos()
   protected val _uiState = MutableStateFlow(createEmptyUiState())
-  val uiState = _uiState.asStateFlow()
+  val uiState: StateFlow<ModelManagerUiState> = _uiState.asStateFlow()
 
   val authService = AuthorizationService(context)
   var curAccessToken: String = ""
@@ -156,18 +163,76 @@ constructor(
     _uiState.update { _uiState.value.copy(selectedModel = model) }
   }
 
+  /**
+   * Initiates the download of a model, handling authentication if required.
+   *
+   * @param task The task associated with the model.
+   * @param model The model to download.
+   */
   fun downloadModel(task: Task, model: Model) {
-    // Update status.
-    setDownloadStatus(
-      curModel = model,
-      status = ModelDownloadStatus(status = ModelDownloadStatusType.IN_PROGRESS),
-    )
+    viewModelScope.launch {
+      try {
+        // Check if authentication is required
+        if (huggingFaceAuthHelper.isAuthRequired(model.name)) {
+          if (!huggingFaceAuthHelper.isAuthenticated) {
+            // Show auth dialog
+            _uiState.update { it.copy(showHuggingFaceAuthDialog = true, pendingAuthModel = model) }
+            return@launch
+          } else {
+            // Set the access token for the model
+            model.accessToken = huggingFaceAuthHelper.accessToken
+          }
+        }
 
-    // Delete the model files first.
-    deleteModel(task = task, model = model)
+        // Proceed with download
+        downloadRepository.downloadModel(
+          model = model,
+          onStatusUpdated = { updatedModel, status ->
+            _uiState.update { currentState ->
+              val updatedStatus = currentState.modelDownloadStatus.toMutableMap()
+              updatedStatus[updatedModel.name] = status
+              currentState.copy(modelDownloadStatus = updatedStatus)
+            }
+          }
+        )
+      } catch (e: Exception) {
+        Log.e(TAG, "Error downloading model: ${e.message}", e)
+        // Update UI with error state
+        _uiState.update { currentState ->
+          val updatedStatus = currentState.modelDownloadStatus.toMutableMap()
+          updatedStatus[model.name] = ModelDownloadStatus(
+            type = ModelDownloadStatusType.ERROR,
+            errorMessage = "Download failed: ${e.message}"
+          )
+          currentState.copy(modelDownloadStatus = updatedStatus)
+        }
+      }
+    }
+  }
 
-    // Start to send download request.
-    downloadRepository.downloadModel(model, onStatusUpdated = this::setDownloadStatus)
+  /**
+   * Cancels an ongoing model download.
+   *
+   * @param model The model whose download should be cancelled.
+   */
+  fun cancelDownload(model: Model) {
+    viewModelScope.launch {
+      try {
+        downloadRepository.cancelDownload(model)
+        // Update the UI state to reflect the cancellation
+        _uiState.update { currentState ->
+          val updatedStatus = currentState.modelDownloadStatus.toMutableMap()
+          updatedStatus[model.name] = ModelDownloadStatus(
+            status = ModelDownloadStatusType.CANCELLED,
+            receivedBytes = updatedStatus[model.name]?.receivedBytes ?: 0,
+            totalBytes = updatedStatus[model.name]?.totalBytes ?: 0
+          )
+          currentState.copy(modelDownloadStatus = updatedStatus)
+        }
+      } catch (e: Exception) {
+        Log.e(TAG, "Error cancelling download: ${e.message}", e)
+      }
+    }
   }
 
   fun cancelDownloadModel(task: Task, model: Model) {

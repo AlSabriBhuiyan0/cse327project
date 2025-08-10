@@ -6,39 +6,38 @@ import android.util.Log
 import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
-import com.google.firebase.auth.FirebaseAuth
+import com.google.android.gms.common.api.ApiException
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+/**
+ * Activity responsible for handling user sign-in with email/password or Google authentication.
+ */
 @AndroidEntryPoint
 class SignInActivity : AppCompatActivity() {
-
-    @Inject
-    lateinit var auth: FirebaseAuth
-
-    @Inject
-    lateinit var googleSignInManager: GoogleSignInManager
 
     private val viewModel: AuthViewModel by viewModels()
     private val TAG = "SignInActivity"
 
-    private val signInLauncher = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
+    // Launcher for Google Sign-In
+    private val googleSignInLauncher = registerForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
-        val data = result.data
-        Log.d(TAG, "Google sign-in result received")
-        val idToken = googleSignInManager.handleSignInResult(data)
-        if (idToken != null) {
-            Log.d(TAG, "ID token obtained, signing in with Google")
-            viewModel.signInWithGoogle(idToken)
+        if (result.resultCode == RESULT_OK) {
+            viewModel.handleGoogleSignInResult(Result.success(Unit))
         } else {
-            Log.e(TAG, "Google sign-in failed, no ID token obtained")
-            Toast.makeText(this, "Google sign-in failed", Toast.LENGTH_SHORT).show()
+            val error = result.data?.let { data ->
+                ApiException(data.getParcelableExtra("error")!!)
+            } ?: Exception("Google sign-in failed with result code: $result")
+            
+            viewModel.handleGoogleSignInResult(Result.failure(error))
         }
     }
 
@@ -46,61 +45,88 @@ class SignInActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_sign_in)
 
-        val clientId = getString(R.string.default_web_client_id)
-        Log.d(TAG, "Using client ID: $clientId")
-
         // Register back press callback (modern approach)
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                // Optional: Prevent going back to Splash screen or exit the app
+                // Prevent going back to Splash screen or exit the app
                 moveTaskToBack(true)
             }
         })
 
         // Observe authentication state
+        observeAuthState()
+        
+        // Set up Google Sign-In button click listener
+        setupGoogleSignInButton()
+    }
+    
+    /**
+     * Sets up the Google Sign-In button click listener
+     */
+    private fun setupGoogleSignInButton() {
+        findViewById<LinearLayout>(R.id.btnGoogleSignIn)?.setOnClickListener {
+            Log.d(TAG, "Google Sign-In button clicked")
+            viewModel.signInWithGoogle(this, googleSignInLauncher::launch)
+        }
+    }
+    
+    /**
+     * Observes the authentication state and handles UI updates accordingly
+     */
+    private fun observeAuthState() {
         lifecycleScope.launch {
+            // Observe general sign-in state
             viewModel.signInState.collect { state ->
                 when (state) {
                     is AuthState.Success -> {
                         Log.d(TAG, "Sign-in successful: ${state.message}")
                         Toast.makeText(this@SignInActivity, state.message, Toast.LENGTH_SHORT).show()
-                        startActivity(Intent(this@SignInActivity, MainActivity::class.java))
-                        finish()
+                        navigateToMain()
                     }
                     is AuthState.Error -> {
                         Log.e(TAG, "Sign-in error: ${state.message}")
-                        Toast.makeText(this@SignInActivity, state.message, Toast.LENGTH_LONG).show()
+                        if (state.message.isNotBlank()) {
+                            Toast.makeText(this@SignInActivity, state.message, Toast.LENGTH_LONG).show()
+                        }
                     }
                     is AuthState.Loading -> {
                         Log.d(TAG, "Sign-in loading...")
-                        // You could show a loading indicator here
+                        // Show loading indicator if needed
                     }
                     else -> {} // Handle other states if needed
                 }
             }
         }
-
-        // Manual Google Sign-In only. Auto-launch is disabled per requirements.
-        // Keep the manual button as the entry point for Google authentication.
-        findViewById<LinearLayout>(R.id.btnGoogleSignIn)?.setOnClickListener {
-            Log.d(TAG, "Google Sign-In button clicked")
-            try {
-                if (clientId.isBlank()) {
-                    Log.e(TAG, "default_web_client_id is blank. Check google-services.json configuration.")
-                    Toast.makeText(this, "Configuration error: missing web client ID", Toast.LENGTH_LONG).show()
-                    return@setOnClickListener
+        
+        // Observe Google Sign-In specific state if needed
+        lifecycleScope.launch {
+            viewModel.googleSignInState.collectLatest { state ->
+                when (state) {
+                    is GoogleSignInState.Loading -> {
+                        // Show loading state for Google Sign-In
+                    }
+                    is GoogleSignInState.Error -> {
+                        Log.e(TAG, "Google Sign-In error: ${state.message}")
+                        if (state.message.isNotBlank()) {
+                            Toast.makeText(this@SignInActivity, state.message, Toast.LENGTH_LONG).show()
+                        }
+                    }
+                    is GoogleSignInState.Success -> {
+                        Log.d(TAG, "Google Sign-In successful for: ${state.account.email}")
+                    }
+                    else -> {} // Handle other states
                 }
-                // Ensure a clean session to avoid stale tokens from previous attempts
-                googleSignInManager.signOut()
-                val signInIntent = googleSignInManager.getSignInIntent(this, clientId)
-                signInLauncher.launch(signInIntent)
-            } catch (e: IllegalArgumentException) {
-                Log.e(TAG, "Invalid client ID: ${e.message}", e)
-                Toast.makeText(this, "Invalid Google Sign-In configuration", Toast.LENGTH_LONG).show()
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to launch Google Sign-In from button", e)
-                Toast.makeText(this, "Unable to start Google Sign-In", Toast.LENGTH_LONG).show()
             }
         }
+    }
+
+    /**
+     * Navigates to the main activity and finishes the current one
+     */
+    private fun navigateToMain() {
+        startActivity(Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        })
+        finish()
     }
 }

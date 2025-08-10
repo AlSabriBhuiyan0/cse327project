@@ -30,6 +30,40 @@ HappyChat AI is an experimental app that puts the power of cutting-edge Generati
 *   **🧩 Bring Your Own Model:** Test your local LiteRT `.task` models.
 *   **🔗 Developer Resources:** Quick links to model cards and source code.
 
+## ⬇️ Model Download & Management
+
+### Downloading Models
+
+1. **Browse Available Models**
+   - Navigate to the "Models" section in the app
+   - Browse through the list of available models with their details (size, performance metrics, etc.)
+   - Tap on a model to see more details and download options
+
+2. **Download Process**
+   - Tap the "Download" button next to your chosen model
+   - For private models, you'll be prompted to enter your Hugging Face access token
+   - Monitor download progress in real-time with the progress indicator
+   - Pause and resume downloads at any time (coming soon)
+   - Cancel ongoing downloads if needed
+
+3. **Authentication**
+   - Private models require Hugging Face authentication
+   - Your access token is stored securely on-device
+   - You can manage or revoke tokens at any time in the app settings
+
+### Managing Downloads
+
+- **View Active Downloads**: See all ongoing downloads in the notification shade
+- **Cancel Downloads**: Swipe left on a download in the notification or tap "Cancel" in the model details
+- **Download Queue**: Multiple downloads are queued and processed sequentially
+- **Storage Management**: The app shows available storage space and warns when space is low
+
+### Troubleshooting
+
+- **Failed Downloads**: Failed downloads can be retried with a single tap
+- **Network Issues**: The app handles network interruptions gracefully and will resume when connectivity is restored
+- **Storage Issues**: Clear downloaded models or free up space if you encounter storage-related errors
+
 ## 🏁 Get Started in Minutes!
 
 1.  **Download the App:** Grab the [**latest APK**](https://github.com/google-ai-edge/gallery/releases/latest/download/ai-edge-gallery.apk).

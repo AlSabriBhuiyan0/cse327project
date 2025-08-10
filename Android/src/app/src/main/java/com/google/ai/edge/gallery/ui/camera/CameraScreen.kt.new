@@ -1,0 +1,447 @@
+package com.google.ai.edge.gallery.ui.camera
+
+import android.Manifest
+import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.util.Log
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.ImageProxy
+import androidx.camera.view.PreviewView
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.google.ai.edge.gallery.camera.CameraManager
+import com.google.ai.edge.gallery.camera.CameraState
+import com.google.ai.edge.gallery.sensor.GyroscopeManager
+import com.google.ai.edge.gallery.sensor.RotationData
+import com.google.ai.edge.gallery.sensor.SensorState
+import com.google.ai.edge.gallery.sensor.WifiManager
+import com.google.ai.edge.gallery.sensor.WifiState
+import com.google.ai.edge.gallery.util.ImageUtils
+import kotlinx.coroutines.launch
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CameraScreen(
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+    viewModel: CameraViewModel = viewModel()
+) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val scope = rememberCoroutineScope()
+    
+    // Permissions state
+    var hasCameraPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.CAMERA
+            ) == PackageManager.PERMISSION_GRANTED
+        )
+    }
+    
+    var hasLocationPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+        )
+    }
+    
+    // Permission launchers
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+        onResult = { granted ->
+            hasCameraPermission = granted
+        }
+    )
+    
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+        onResult = { granted ->
+            hasLocationPermission = granted
+            if (granted) {
+                viewModel.startWifiScan()
+            }
+        }
+    )
+    
+    // Request permissions if not granted
+    LaunchedEffect(Unit) {
+        if (!hasCameraPermission) {
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+        if (!hasLocationPermission) {
+            locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+    }
+    
+    // Initialize managers
+    val cameraManager = remember { 
+        CameraManager(context, lifecycleOwner)
+    }
+    
+    val gyroscopeManager = remember { 
+        GyroscopeManager(context)
+    }
+    
+    val wifiManager = remember {
+        WifiManager(context)
+    }
+    
+    // Collect sensor states
+    val rotationData by gyroscopeManager.rotationData.collectAsState()
+    val sensorState by gyroscopeManager.sensorState.collectAsState()
+    val wifiState by wifiManager.wifiState.collectAsState()
+    val availableNetworks by wifiManager.availableNetworks.collectAsState()
+    
+    // AI analysis state
+    val analysisResult by viewModel.analysisResult.collectAsState()
+    val isProcessing by viewModel.isProcessing.collectAsState()
+    
+    // WiFi status indicator
+    val wifiIcon = when (wifiState) {
+        is WifiState.Connected -> Icons.Default.Wifi
+        is WifiState.Disconnected -> Icons.Default.WifiOff
+        is WifiState.Disabled -> Icons.Default.SignalWifiOff
+        is WifiState.Error -> Icons.Default.Error
+        else -> Icons.Default.WifiOff
+    }
+    
+    val wifiColor = when (wifiState) {
+        is WifiState.Connected -> Color.Green
+        is WifiState.Disconnected -> Color.Yellow
+        is WifiState.Disabled -> Color.Gray
+        is WifiState.Error -> Color.Red
+        else -> Color.Gray
+    }
+    
+    // Set up image analysis
+    LaunchedEffect(Unit) {
+        gyroscopeManager.start()
+        if (hasLocationPermission) {
+            viewModel.startWifiScan()
+        }
+        
+        val imageAnalysis = ImageAnalysis.Builder()
+            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+            .build()
+            
+        imageAnalysis.setAnalyzer(
+            ContextCompat.getMainExecutor(context),
+            { imageProxy ->
+                try {
+                    val bitmap = imageProxy.toBitmap()
+                    viewModel.analyzeImage(bitmap)
+                } catch (e: Exception) {
+                    Log.e("CameraScreen", "Error processing image", e)
+                } finally {
+                    imageProxy.close()
+                }
+            }
+        )
+        
+        cameraManager.setImageAnalysis(imageAnalysis)
+        
+        onDispose {
+            gyroscopeManager.stop()
+            viewModel.stopWifiScan()
+            cameraManager.clearImageAnalysis()
+        }
+    }
+    
+    // Camera state
+    val cameraState by cameraManager.cameraState.collectAsState()
+    
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { 
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Camera & Sensors")
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Icon(
+                            imageVector = wifiIcon,
+                            contentDescription = "WiFi Status",
+                            tint = wifiColor,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        if (wifiState is WifiState.Connected) {
+                            Text(
+                                text = (wifiState as WifiState.Connected).ssid,
+                                fontSize = 12.sp,
+                                color = Color.White,
+                                modifier = Modifier.padding(start = 4.dp)
+                            )
+                        }
+                    }
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.Default.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Color.White
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.Black.copy(alpha = 0.7f),
+                    titleContentColor = Color.White,
+                    actionIconContentColor = Color.White
+                )
+            )
+        }
+    ) { padding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            // Camera preview
+            if (hasCameraPermission) {
+                AndroidView(
+                    factory = { context ->
+                        val previewView = PreviewView(context).apply {
+                            implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+                            scaleType = PreviewView.ScaleType.FILL_CENTER
+                        }
+                        cameraManager.startCamera(previewView.surfaceProvider)
+                        previewView
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                // Camera permission denied UI
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.VideocamOff,
+                        contentDescription = "Camera Access Required",
+                        tint = Color.White,
+                        modifier = Modifier.size(48.dp)
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Camera access is required for this feature",
+                        color = Color.White,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+            
+            // Top info bar
+            Column(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .fillMaxWidth()
+                    .background(Color.Black.copy(alpha = 0.5f))
+                    .padding(8.dp)
+            ) {
+                // WiFi networks info
+                if (availableNetworks.isNotEmpty()) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Wifi,
+                            contentDescription = "Available Networks",
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "${availableNetworks.size} networks",
+                            color = Color.White,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+                
+                // Analysis results
+                if (analysisResult.objects.isNotEmpty()) {
+                    Text(
+                        text = "Detected: ${analysisResult.objects.joinToString { it.label }}",
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+                }
+            }
+            
+            // Gyroscope overlay
+            GyroscopeOverlay(
+                rotationData = rotationData,
+                sensorState = sensorState,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(16.dp)
+            )
+            
+            // Bottom panel with controls
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .background(Color.Black.copy(alpha = 0.5f))
+                    .padding(16.dp)
+            ) {
+                // Capture button
+                if (hasCameraPermission) {
+                    IconButton(
+                        onClick = { cameraManager.takePicture() },
+                        modifier = Modifier
+                            .align(Alignment.CenterHorizontally)
+                            .size(72.dp)
+                            .background(
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                shape = CircleShape
+                            )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CameraAlt,
+                            contentDescription = "Capture",
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.size(36.dp)
+                        )
+                    }
+                    
+                    // Processing indicator
+                    if (isProcessing) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .align(Alignment.CenterHorizontally)
+                                .padding(top = 8.dp)
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = Color.White
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Analyzing...",
+                                color = Color.White,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                } else {
+                    // Request camera permission button
+                    Button(
+                        onClick = { 
+                            cameraPermissionLauncher.launch(Manifest.permission.CAMERA) 
+                        },
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CameraAlt,
+                            contentDescription = null,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Enable Camera")
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Extension function to convert ImageProxy to Bitmap
+private fun ImageProxy.toBitmap(): Bitmap {
+    val buffer = planes[0].buffer
+    val bytes = ByteArray(buffer.remaining())
+    buffer.get(bytes)
+    return ImageUtils.yuv420ToBitmap(this, bytes)
+}
+
+@Composable
+private fun GyroscopeOverlay(
+    rotationData: RotationData,
+    sensorState: SensorState,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .background(
+                color = Color.Black.copy(alpha = 0.5f),
+                shape = CircleShape
+            )
+            .size(80.dp)
+            .padding(8.dp)
+    ) {
+        when (sensorState) {
+            is SensorState.Available -> {
+                Column(
+                    horizontalAlignment = Alignment.Center,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = "Gyro",
+                        color = Color.White,
+                        fontSize = 10.sp
+                    )
+                    Text(
+                        text = "X: %.1f".format(rotationData.x),
+                        color = Color.White,
+                        fontSize = 10.sp
+                    )
+                    Text(
+                        text = "Y: %.1f".format(rotationData.y),
+                        color = Color.White,
+                        fontSize = 10.sp
+                    )
+                    Text(
+                        text = "Z: %.1f".format(rotationData.z),
+                        color = Color.White,
+                        fontSize = 10.sp
+                    )
+                }
+            }
+            is SensorState.Unavailable -> {
+                Icon(
+                    imageVector = Icons.Default.SensorsOff,
+                    contentDescription = "Gyroscope Unavailable",
+                    tint = Color.White,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+            is SensorState.Error -> {
+                Icon(
+                    imageVector = Icons.Default.Error,
+                    contentDescription = "Gyroscope Error",
+                    tint = Color.Red,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+        }
+    }
+}

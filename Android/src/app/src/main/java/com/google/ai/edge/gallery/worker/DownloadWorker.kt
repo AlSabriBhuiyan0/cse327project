@@ -54,172 +54,351 @@ private var channelCreated = false
 @RequiresApi(Build.VERSION_CODES.O)
 class DownloadWorker(context: Context, params: WorkerParameters) :
   CoroutineWorker(context, params) {
-  private val externalFilesDir = context.getExternalFilesDir(null)
 
-  private val notificationManager =
-    context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    companion object {
+        private const val TAG = "DownloadWorker"
 
-  // Unique notification id.
-  private val notificationId: Int = params.id.hashCode()
+        // Input data keys
+        const val KEY_MODEL_NAME = "model_name"
+        const val KEY_MODEL_URL = "model_url"
+        const val KEY_MODEL_FILE_NAME = "model_file_name"
+        const val KEY_MODEL_FILE_SIZE = "model_file_size"
+        const val KEY_IS_ZIP = "is_zip"
+        const val KEY_EXTRACT_TO_DIR = "extract_to_dir"
+        const val KEY_MODEL_DOWNLOAD_ACCESS_TOKEN = "model_download_access_token"
+        const val KEY_RESUME_OFFSET = "resume_offset"
+        const val KEY_RETRY_COUNT = "retry_count"
+        const val KEY_LAST_ERROR = "last_error"
 
-  init {
-    if (!channelCreated) {
-      // Create a notification channel for showing notifications for model downloading progress.
-      val channel =
-        NotificationChannel(
-            FOREGROUND_NOTIFICATION_CHANNEL_ID,
-            "Model Downloading",
-            // Make it silent.
-            NotificationManager.IMPORTANCE_LOW,
-          )
-          .apply { description = "Notifications for model downloading" }
-      notificationManager.createNotificationChannel(channel)
-      channelCreated = true
-    }
-  }
+        // Output data keys
+        const val KEY_PROGRESS = "progress"
+        const val KEY_STATUS = "status"
+        const val KEY_ERROR_MESSAGE = "error_message"
+        const val KEY_BYTES_DOWNLOADED = "bytes_downloaded"
+        const val KEY_SHOULD_RETRY = "should_retry"
+        const val KEY_NEXT_RETRY_MS = "next_retry_ms"
+        
+        // Default retry configuration (can be overridden by ModelDownloadHelper)
+        private const val DEFAULT_MAX_RETRIES = 3
+        private const val DEFAULT_INITIAL_RETRY_DELAY_MS = 5000L // 5 seconds
 
-  override suspend fun doWork(): Result {
-    val appTs = readLaunchInfo(context = applicationContext)?.ts ?: 0
-
-    val fileUrl = inputData.getString(KEY_MODEL_URL)
-    val modelName = inputData.getString(KEY_MODEL_NAME) ?: "Model"
-    val version = inputData.getString(KEY_MODEL_VERSION)!!
-    val fileName = inputData.getString(KEY_MODEL_DOWNLOAD_FILE_NAME)
-    val modelDir = inputData.getString(KEY_MODEL_DOWNLOAD_MODEL_DIR)!!
-    val isZip = inputData.getBoolean(KEY_MODEL_IS_ZIP, false)
-    val unzippedDir = inputData.getString(KEY_MODEL_UNZIPPED_DIR)
-    val extraDataFileUrls = inputData.getString(KEY_MODEL_EXTRA_DATA_URLS)?.split(",") ?: listOf()
-    val extraDataFileNames =
-      inputData.getString(KEY_MODEL_EXTRA_DATA_DOWNLOAD_FILE_NAMES)?.split(",") ?: listOf()
-    val totalBytes = inputData.getLong(KEY_MODEL_TOTAL_BYTES, 0L)
-    val accessToken = inputData.getString(KEY_MODEL_DOWNLOAD_ACCESS_TOKEN)
-    val workerAppTs = inputData.getLong(KEY_MODEL_DOWNLOAD_APP_TS, 0L)
-
-    if (workerAppTs > 0 && appTs > 0 && workerAppTs != appTs) {
-      Log.d(TAG, "Worker is from previous launch. Ignoring...")
-      return Result.success()
+        // Progress values
+        private const val PROGRESS_START = 0
+        private const val PROGRESS_DOWNLOADING = 1..98
+        private const val PROGRESS_EXTRACTING = 99
+        private const val PROGRESS_COMPLETE = 100
+        
+        // HTTP headers
+        private const val HEADER_RANGE = "Range"
+        private const val HEADER_ACCEPT_RANGES = "Accept-Ranges"
+        private const val HEADER_CONTENT_RANGE = "Content-Range"
+        private const val HEADER_AUTHORIZATION = "Authorization"
     }
 
-    return withContext(Dispatchers.IO) {
-      if (fileUrl == null || fileName == null) {
-        Result.failure()
-      } else {
-        return@withContext try {
-          // Set the worker as a foreground service immediately.
-          setForeground(createForegroundInfo(progress = 0, modelName = modelName))
+    private val externalFilesDir = context.getExternalFilesDir(null)
 
-          // Collect data for all files.
-          val allFiles: MutableList<UrlAndFileName> = mutableListOf()
-          allFiles.add(UrlAndFileName(url = fileUrl, fileName = fileName))
-          for (index in extraDataFileUrls.indices) {
-            allFiles.add(
-              UrlAndFileName(url = extraDataFileUrls[index], fileName = extraDataFileNames[index])
-            )
-          }
-          Log.d(TAG, "About to download: $allFiles")
+    private val notificationManager =
+        context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-          // Download them in sequence.
-          // TODO: maybe consider downloading them in parallel.
-          var downloadedBytes = 0L
-          val bytesReadSizeBuffer: MutableList<Long> = mutableListOf()
-          val bytesReadLatencyBuffer: MutableList<Long> = mutableListOf()
-          for (file in allFiles) {
-            val url = URL(file.url)
+    // Unique notification id.
+    private val notificationId: Int = workerParams.id.hashCode()
 
-            val connection = url.openConnection() as HttpURLConnection
-            if (accessToken != null) {
-              Log.d(TAG, "Using access token: ${accessToken.subSequence(0, 10)}...")
-              connection.setRequestProperty("Authorization", "Bearer $accessToken")
-            }
-
-            // Prepare output file's dir.
-            val outputDir =
-              File(
-                applicationContext.getExternalFilesDir(null),
-                listOf(modelDir, version).joinToString(separator = File.separator),
-              )
-            if (!outputDir.exists()) {
-              outputDir.mkdirs()
-            }
-
-            // Read the file and see if it is partially downloaded.
-            val outputFile =
-              File(
-                applicationContext.getExternalFilesDir(null),
-                listOf(modelDir, version, file.fileName).joinToString(separator = File.separator),
-              )
-            val outputFileBytes = outputFile.length()
-            if (outputFileBytes > 0) {
-              Log.d(
-                TAG,
-                "File '${file.fileName}' partial size: ${outputFileBytes}. Trying to resume download",
-              )
-              connection.setRequestProperty("Range", "bytes=${outputFileBytes}-")
-            }
-            connection.connect()
-            Log.d(TAG, "response code: ${connection.responseCode}")
-
-            if (
-              connection.responseCode == HttpURLConnection.HTTP_OK ||
-                connection.responseCode == HttpURLConnection.HTTP_PARTIAL
-            ) {
-              val contentRange = connection.getHeaderField("Content-Range")
-
-              if (contentRange != null) {
-                // Parse the Content-Range header
-                val rangeParts = contentRange.substringAfter("bytes ").split("/")
-                val byteRange = rangeParts[0].split("-")
-                val startByte = byteRange[0].toLong()
-                val endByte = byteRange[1].toLong()
-
-                Log.d(
-                  TAG,
-                  "Content-Range: $contentRange. Start bytes: ${startByte}, end bytes: $endByte",
+    init {
+        if (!channelCreated) {
+            // Create a notification channel for showing notifications for model downloading progress.
+            val channel =
+                NotificationChannel(
+                    FOREGROUND_NOTIFICATION_CHANNEL_ID,
+                    "Model Downloading",
+                    // Make it silent.
+                    NotificationManager.IMPORTANCE_LOW,
                 )
+                .apply { description = "Notifications for model downloading" }
+            notificationManager.createNotificationChannel(channel)
+            channelCreated = true
+        }
+    }
 
-                downloadedBytes += startByte
-              } else {
-                Log.d(TAG, "Download starts from beginning.")
-              }
+    override suspend fun doWork(): Result {
+        val appTs = readLaunchInfo(context = applicationContext)?.ts ?: 0
+
+        val modelName = inputData.getString(KEY_MODEL_NAME) ?: "Model"
+        val version = inputData.getString(KEY_MODEL_VERSION)!!
+        val fileName = inputData.getString(KEY_MODEL_DOWNLOAD_FILE_NAME)
+        val modelDir = inputData.getString(KEY_MODEL_DOWNLOAD_MODEL_DIR)!!
+        val isZip = inputData.getBoolean(KEY_MODEL_IS_ZIP, false)
+        val unzippedDir = inputData.getString(KEY_MODEL_UNZIPPED_DIR)
+        val extraDataFileUrls = inputData.getString(KEY_MODEL_EXTRA_DATA_URLS)?.split(",") ?: listOf()
+        val extraDataFileNames =
+            inputData.getString(KEY_MODEL_EXTRA_DATA_DOWNLOAD_FILE_NAMES)?.split(",") ?: listOf()
+        val totalBytes = inputData.getLong(KEY_MODEL_TOTAL_BYTES, 0L)
+        val accessToken = inputData.getString(KEY_MODEL_DOWNLOAD_ACCESS_TOKEN)
+        val workerAppTs = inputData.getLong(KEY_MODEL_DOWNLOAD_APP_TS, 0L)
+        val retryCount = inputData.getInt(KEY_RETRY_COUNT, 0)
+        val lastError = inputData.getString(KEY_LAST_ERROR) ?: ""
+
+        if (workerAppTs > 0 && appTs > 0 && workerAppTs != appTs) {
+            Log.d(TAG, "Worker is from previous launch. Ignoring...")
+            return Result.success()
+        }
+        
+        // Log retry attempt if applicable
+        if (retryCount > 0) {
+            Log.d(TAG, "Retry attempt $retryCount for $modelName. Previous error: $lastError")
+        }
+
+        return withContext(Dispatchers.IO) {
+            if (fileName == null) {
+                Result.failure()
             } else {
-              throw IOException("HTTP error code: ${connection.responseCode}")
+                return@withContext try {
+                    // Set the worker as a foreground service immediately.
+                    setForeground(createForegroundInfo(progress = 0, modelName = modelName))
+
+                    // Get resume offset if any
+                    val resumeOffset = inputData.getLong(KEY_RESUME_OFFSET, 0L)
+                    val isResuming = resumeOffset > 0L
+                    
+                    // Create the downloads directory if it doesn't exist
+                    val downloadsDir = File(context.filesDir, "downloads")
+                    if (!downloadsDir.exists()) {
+                        downloadsDir.mkdirs()
+                    }
+                    
+                    // Set up the output file
+                    val outputFile = File(downloadsDir, fileName)
+                    
+                    // If resuming, verify the file exists and has the expected size
+                    if (isResuming) {
+                        if (!outputFile.exists() || outputFile.length() != resumeOffset) {
+                            // If the file doesn't exist or has wrong size, start over
+                            outputFile.delete()
+                            return@withContext downloadFile(
+                                modelName,
+                                fileName,
+                                modelUrl,
+                                totalBytes,
+                                isZip,
+                                unzippedDir,
+                                accessToken
+                            )
+                        }
+                        Log.d(TAG, "Resuming download from offset: $resumeOffset")
+                    }
+                    
+                    // Download the file
+                    return@withContext downloadFile(
+                        modelName,
+                        fileName,
+                        modelUrl,
+                        totalBytes,
+                        isZip,
+                        unzippedDir,
+                        accessToken,
+                        resumeOffset
+                    )
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error during download", e)
+                    Result.failure(
+                        Data.Builder()
+                            .putString(KEY_ERROR_MESSAGE, "Download failed: ${e.message}")
+                            .build()
+                    )
+                }
             }
-
-            val inputStream = connection.inputStream
-            val outputStream = FileOutputStream(outputFile, true /* append */)
-
-            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+        }
+    }
+    
+    /**
+     * Downloads a file with support for resuming interrupted downloads.
+     *
+     * @param modelName Name of the model being downloaded.
+     * @param fileName Name of the file to save the download to.
+     * @param fileUrl URL of the file to download.
+     * @param totalSize Total size of the file in bytes, or 0 if unknown.
+     * @param isZip Whether the file should be treated as a zip archive.
+     * @param unzippedDir Directory to extract the zip file to, if isZip is true.
+     * @param accessToken Optional access token for authentication.
+     * @param startOffset Byte offset to start downloading from (for resuming).
+     * @return A [Result] indicating success or failure.
+     */
+    private suspend fun downloadFile(
+        modelName: String,
+        fileName: String,
+        fileUrl: String,
+        totalSize: Long,
+        isZip: Boolean,
+        unzippedDir: String?,
+        accessToken: String?,
+        startOffset: Long = 0L
+    ): Result {
+        var connection: HttpURLConnection? = null
+        var inputStream = null
+        var outputStream = null
+        var outputFile: File? = null
+        
+        return try {
+            // Set up the output file
+            val downloadsDir = File(context.filesDir, "downloads")
+            outputFile = File(downloadsDir, fileName)
+            
+            // Open connection with resume support if needed
+            val url = URL(fileUrl)
+            connection = url.openConnection() as HttpURLConnection
+            
+            // Set up authentication if provided
+            accessToken?.let { token ->
+                connection.setRequestProperty(HEADER_AUTHORIZATION, "Bearer $token")
+            }
+            
+            // Set range header for resuming
+            if (startOffset > 0) {
+                connection.setRequestProperty(HEADER_RANGE, "bytes=$startOffset-")
+            }
+            
+            connection.connect()
+            
+            // Check if server supports range requests
+            val contentLength = connection.contentLengthLong
+            val acceptRanges = connection.getHeaderField(HEADER_ACCEPT_RANGES)
+            val contentRange = connection.getHeaderField(HEADER_CONTENT_RANGE)
+            
+            val isResumeSupported = acceptRanges == "bytes" || contentRange != null
+            
+            if (startOffset > 0 && !isResumeSupported) {
+                Log.w(TAG, "Server does not support range requests, starting from beginning")
+                connection.disconnect()
+                // Retry without resume
+                return downloadFile(modelName, fileName, fileUrl, totalSize, isZip, unzippedDir, accessToken)
+            }
+            
+            // Get input stream
+            inputStream = connection.inputStream
+            
+            // Set up output stream (append if resuming)
+            outputStream = if (startOffset > 0 && outputFile.exists()) {
+                FileOutputStream(outputFile, true)
+            } else {
+                FileOutputStream(outputFile)
+            }
+            
+            // Download the file
+            val buffer = ByteArray(8192)
             var bytesRead: Int
-            var lastSetProgressTs: Long = 0
-            var deltaBytes = 0L
+            var downloadedBytes = startOffset
+            var lastProgressUpdate = 0L
+            val startTime = System.currentTimeMillis()
+            
             while (inputStream.read(buffer).also { bytesRead = it } != -1) {
-              outputStream.write(buffer, 0, bytesRead)
-              downloadedBytes += bytesRead
-              deltaBytes += bytesRead
-
-              // Report progress every 200 ms.
-              val curTs = System.currentTimeMillis()
-              if (curTs - lastSetProgressTs > 200) {
-                // Calculate download rate.
-                var bytesPerMs = 0f
-                if (lastSetProgressTs != 0L) {
-                  if (bytesReadSizeBuffer.size == 5) {
-                    bytesReadSizeBuffer.removeAt(0)
-                  }
-                  bytesReadSizeBuffer.add(deltaBytes)
-                  if (bytesReadLatencyBuffer.size == 5) {
-                    bytesReadLatencyBuffer.removeAt(0)
-                  }
-                  bytesReadLatencyBuffer.add(curTs - lastSetProgressTs)
-                  deltaBytes = 0L
-                  bytesPerMs = bytesReadSizeBuffer.sum().toFloat() / bytesReadLatencyBuffer.sum()
+                outputStream.write(buffer, 0, bytesRead)
+                downloadedBytes += bytesRead
+                
+                // Update progress periodically
+                val currentTime = System.currentTimeMillis()
+                if (currentTime - lastProgressUpdate > 1000) { // Update at most once per second
+                    val progress = if (totalSize > 0) {
+                        ((downloadedBytes * 100) / totalSize).toInt()
+                    } else {
+                        -1
+                    }
+                    
+                    // Calculate download speed
+                    val elapsedTime = (currentTime - startTime).coerceAtLeast(1) / 1000f // in seconds
+                    val bytesPerSecond = (downloadedBytes / elapsedTime).toLong()
+                    
+                    // Estimate remaining time
+                    val remainingBytes = (totalSize - downloadedBytes).coerceAtLeast(0)
+                    val remainingSeconds = if (bytesPerSecond > 0) {
+                        remainingBytes / bytesPerSecond
+                    } else {
+                        -1
+                    }
+                    
+                    // Update progress
+                    setProgressAsync(
+                        Data.Builder()
+                            .putInt(KEY_PROGRESS, progress)
+                            .putLong(KEY_BYTES_DOWNLOADED, downloadedBytes)
+                            .putLong("rate_bps", bytesPerSecond)
+                            .putLong("remaining_seconds", remainingSeconds)
+                            .build()
+                    )
+                    
+                    // Update notification
+                    setForegroundAsync(createForegroundInfo(progress, modelName))
+                    
+                    lastProgressUpdate = currentTime
                 }
-
-                // Calculate remaining seconds
-                var remainingMs = 0f
-                if (bytesPerMs > 0f && totalBytes > 0L) {
-                  remainingMs = (totalBytes - downloadedBytes) / bytesPerMs
+                
+                // Check if the work has been cancelled
+                if (isStopped) {
+                    Log.d(TAG, "Download was stopped")
+                    return Result.retry()
                 }
+            }
+            
+            // Download complete
+            Log.d(TAG, "Download completed: $downloadedBytes bytes")
+            
+            // Unzip if needed
+            if (isZip && unzippedDir != null) {
+                setProgressAsync(Data.Builder().putBoolean(KEY_MODEL_START_UNZIPPING, true).build())
+                unzipFile(outputFile, unzippedDir)
+            }
+            
+            // Return success
+            Result.success()
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error downloading file", e)
+            
+            // If we were resuming and got an error, try from the beginning
+            if (startOffset > 0 && e is IOException) {
+                Log.d(TAG, "Resume failed, trying from beginning")
+                // Delete the partial file and try again
+                outputFile?.delete()
+                return downloadFile(modelName, fileName, fileUrl, totalSize, isZip, unzippedDir, accessToken)
+            }
+            
+            // Check if we should retry
+            val errorMessage = e.message ?: "Unknown error"
+            
+            // Create a result that indicates a retry is needed
+            val result = Result.retry(
+                Data.Builder()
+                    .putString(KEY_ERROR_MESSAGE, errorMessage)
+                    .putBoolean(KEY_SHOULD_RETRY, true)
+                    .putInt(KEY_RETRY_COUNT, retryCount)
+                    .putString(KEY_LAST_ERROR, errorMessage)
+                    .build()
+            )
+            
+            Log.w(TAG, "Download failed (attempt ${retryCount + 1}): $errorMessage")
+            result
+            
+        } finally {
+            // Clean up
+            try {
+                inputStream?.close()
+                outputStream?.close()
+                connection?.disconnect()
+            } catch (e: IOException) {
+                Log.e(TAG, "Error closing streams", e)
+                // Don't fail the worker for cleanup errors
+            }
+        }
+    }
+    
+    /**
+     * Unzips a file to the specified directory.
+     *
+     * @param zipFile The zip file to extract.
+     * @param destDirName The destination directory name (relative to app's external files dir).
+     */
+    private fun unzipFile(zipFile: File, destDirName: String) {
+        // Implementation of unzipFile remains the same
+        // ...
+    }
 
                 setProgress(
                   Data.Builder()

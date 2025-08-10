@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Standard haptic feedback constants (compatible with VibrationEffect) -->
+    <integer name="haptic_feedback_click">0</integer>          <!-- CLICK -->
+    <integer name="haptic_feedback_long_press">1</integer>     <!-- LONG_PRESS -->
+    <integer name="haptic_feedback_virtual_key">2</integer>    <!-- VIRTUAL_KEY -->
+    <integer name="haptic_feedback_keyboard_tap">3</integer>   <!-- KEYBOARD_TAP -->
+    <integer name="haptic_feedback_clock_tick">4</integer>     <!-- CLOCK_TICK -->
+    <integer name="haptic_feedback_confirm">5</integer>        <!-- CONFIRM -->
+    <integer name="haptic_feedback_reject">6</integer>         <!-- REJECT -->
+    
+    <!-- Custom haptic feedback types -->
+    <!-- Light impact (short, subtle vibration) -->
+    <integer name="haptic_feedback_light_impact">10</integer>
+    <!-- Medium impact (standard vibration) -->
+    <integer name="haptic_feedback_medium_impact">15</integer>
+    <!-- Heavy impact (strong, noticeable vibration) -->
+    <integer name="haptic_feedback_heavy_impact">20</integer>
+    <!-- Success feedback (short, positive confirmation) -->
+    <integer name="haptic_feedback_success">25</integer>
+    <!-- Error feedback (short, negative confirmation) -->
+    <integer name="haptic_feedback_error">30</integer>
+    <!-- Selection change (subtle feedback for list/grid selection) -->
+    <integer name="haptic_feedback_selection_change">35</integer>
+    <!-- Camera click feedback (short, crisp vibration) -->
+    <integer name="haptic_feedback_camera_click">40</integer>
+    
+    <!-- Vibration durations in milliseconds -->
+    <integer name="vibration_duration_short">15</integer>      <!-- 15ms -->
+    <integer name="vibration_duration_medium">30</integer>     <!-- 30ms -->
+    <integer name="vibration_duration_long">50</integer>       <!-- 50ms -->
+    <integer name="vibration_duration_heavy">100</integer>     <!-- 100ms -->
+    
+    <!-- Animation durations -->
+    <integer name="animation_duration_short">100</integer>     <!-- 100ms -->
+    <integer name="animation_duration_medium">200</integer>    <!-- 200ms -->
+    <integer name="animation_duration_long">300</integer>      <!-- 300ms -->
+    
+    <!-- Other integer constants -->
+    <integer name="max_retry_attempts">3</integer>             <!-- Max retry attempts for operations -->
+    <integer name="default_page_size">20</integer>             <!-- Default pagination size -->
+    <integer name="sensor_update_delay">100</integer>          <!-- Sensor update delay in ms -->
+    <integer name="camera_auto_focus_interval">2000</integer>  <!-- Auto-focus interval in ms -->
+</resources>

@@ -58,10 +58,12 @@ import com.google.ai.edge.gallery.ui.llmsingleturn.LlmSingleTurnScreen
 import com.google.ai.edge.gallery.ui.llmsingleturn.LlmSingleTurnViewModel
 import com.google.ai.edge.gallery.ui.modelmanager.ModelManager
 import com.google.ai.edge.gallery.ui.modelmanager.ModelManagerViewModel
+import com.google.ai.edge.gallery.ui.geofence.GeofenceScreen
 import com.google.ai.edge.gallery.ui.geofence.GeofenceManagementDestination
 import com.google.ai.edge.gallery.ui.geofence.GeofenceManagementScreen
 import com.google.ai.edge.gallery.ui.bridge.MessageBridgeDestination
 import com.google.ai.edge.gallery.ui.bridge.MessageBridgeScreen
+import com.google.ai.edge.gallery.ui.camera.CameraScreen
 
 // Auth screen routes
 object SignInDestination {
@@ -152,6 +154,9 @@ fun GalleryNavHost(
     },
     navigateToMessageBridge = {
       navController.navigate(MessageBridgeDestination.route)
+    },
+    navigateToCamera = {
+      navController.navigate("camera")
     }
   )
 
@@ -188,6 +193,19 @@ fun GalleryNavHost(
   ) {
     // Placeholder root screen
     composable(route = ROUTE_PLACEHOLDER) { Text("") }
+
+    // Camera screen
+    composable(
+      route = "camera",
+      enterTransition = { slideEnter() },
+      exitTransition = { slideExit() },
+      popEnterTransition = { slideEnter() },
+      popExitTransition = { slideExit() }
+    ) {
+      CameraScreen(
+        onBack = { navController.popBackStack() }
+      )
+    }
 
     // Auth screens
     composable(route = SignInDestination.route) {
@@ -301,8 +319,8 @@ fun GalleryNavHost(
       enterTransition = { slideEnter() },
       exitTransition = { slideExit() },
     ) {
-      GeofenceManagementScreen(
-        navigateUp = { navController.navigateUp() },
+      GeofenceScreen(
+        onBackClick = { navController.navigateUp() },
       )
     }
 

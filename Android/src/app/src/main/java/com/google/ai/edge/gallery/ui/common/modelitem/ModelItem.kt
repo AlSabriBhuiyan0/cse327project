@@ -51,8 +51,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import com.google.ai.edge.gallery.data.Model
+import com.google.ai.edge.gallery.data.ModelDownloadStatus
 import com.google.ai.edge.gallery.data.ModelDownloadStatusType
 import com.google.ai.edge.gallery.data.Task
+import com.google.ai.edge.gallery.ui.components.DownloadProgressIndicator
 import com.google.ai.edge.gallery.ui.common.DownloadAndTryButton
 import com.google.ai.edge.gallery.ui.common.MarkdownText
 import com.google.ai.edge.gallery.ui.common.TaskIcon
@@ -187,18 +189,33 @@ fun ModelItem(
             )
           }
 
-        val description =
+        val descriptionAndProgress =
           @Composable {
-            if (model.info.isNotEmpty()) {
-              MarkdownText(
-                model.info,
-                modifier =
-                  Modifier.sharedElement(
-                      sharedContentState = rememberSharedContentState(key = "description"),
-                      animatedVisibilityScope = this@AnimatedContent,
-                    )
-                    .skipToLookaheadSize(),
+            Column(
+              modifier = Modifier.sharedElement(
+                sharedContentState = rememberSharedContentState(key = "description"),
+                animatedVisibilityScope = this@AnimatedContent,
               )
+            ) {
+              // Show download progress if downloading
+              if (downloadStatus?.status == ModelDownloadStatusType.IN_PROGRESS || 
+                  downloadStatus?.status == ModelDownloadStatusType.UNZIPPING) {
+                DownloadProgressIndicator(
+                  status = downloadStatus,
+                  onCancel = { modelManagerViewModel.cancelDownload(model) },
+                  modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp)
+                )
+              }
+              
+              // Show model info if available
+              if (model.info.isNotEmpty()) {
+                MarkdownText(
+                  model.info,
+                  modifier = Modifier.skipToLookaheadSize(),
+                )
+              }
             }
           }
 
@@ -286,8 +303,8 @@ fun ModelItem(
             }
             // Name and status below the icon.
             modelNameAndStatus()
-            // Description.
-            description()
+            // Description and download progress
+            descriptionAndProgress()
             // Buttons
             buttonsRow()
           }

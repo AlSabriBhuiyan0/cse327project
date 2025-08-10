@@ -1,5 +1,17 @@
 <resources>
     <string name="app_name">AI Chat Bot</string>
+    
+    <!-- Hugging Face Auth Strings -->
+    <string name="hf_auth_title">Hugging Face Authentication</string>
+    <string name="hf_auth_message">Please enter your Hugging Face access token to download this model</string>
+    <string name="hf_auth_token_hint">Access Token</string>
+    <string name="hf_auth_token_help">Get your token from huggingface.co/settings/tokens</string>
+    <string name="hf_auth_authenticate">Authenticate</string>
+    <string name="hf_auth_cancel">Cancel</string>
+    <string name="hf_auth_required">Authentication Required</string>
+    <string name="hf_auth_required_message">This model requires Hugging Face authentication. Please sign in to continue.</string>
+    <string name="hf_auth_error">Authentication Error</string>
+    <string name="hf_auth_invalid_token">The provided token is invalid. Please check and try again.</string>
     <string name="model_manager">Model Manager</string>
     <string name="downloaded_size">%1$s downloaded</string>
     <string name="cancel">Cancel</string>
@@ -17,6 +29,16 @@
     <string name="chat_generic_result_name">Result</string>
     <string name="model_not_downloaded_msg">Model not downloaded yet</string>
     <string name="model_is_initializing_msg">Initializing model…</string>
+    <string name="downloading_model">Downloading…</string>
+    <string name="unzipping_model">Unzipping model…</string>
+    <string name="download_completed">Download completed</string>
+    <string name="download_failed">Download failed</string>
+    <string name="download_cancelled">Download cancelled</string>
+    <string name="retry_attempt_info">Retry %1$d of %2$d in %3$ds…</string>
+    <string name="no_more_retries">No more retry attempts</string>
+    <string name="download_paused">Paused</string>
+    <string name="resume_download">Resume</string>
+    <string name="pause_download">Pause</string>
     <string name="text_input_placeholder_text_classification">Type movie review to classify…</string>
     <string name="text_image_generation_text_field_placeholder">Type prompt…</string>
     <string name="text_input_placeholder_llm_chat">Type prompt…</string>
@@ -26,5 +48,29 @@
     <string name="running">running</string>
     <string name="sign_in_with_google">Sign in with Google</string>
     <string name="default_web_client_id">427303639935-8g8fe71rc727ri1iv2cr8op3upv20g2m.apps.googleusercontent.com</string>
+    
+    <!-- Camera and Location Permission Strings -->
+    <string name="permission_required_title">Permissions Required</string>
+    <string name="camera_location_permission_rationale">Camera and location permissions are required for full functionality. Please grant these permissions in the app settings.</string>
+    <string name="open_settings">Open Settings</string>
+    <string name="back">Back</string>
+    <string name="camera_title">Camera</string>
+    <string name="show_sensors">Show sensor data</string>
+    <string name="hide_sensors">Hide sensor data</string>
+    <string name="toggle_camera">Switch camera</string>
+    <string name="camera_preview">Camera preview</string>
+    <string name="sensor_data">Sensor Data</string>
+    <string name="network_status">Network Status</string>
+    <string name="wifi_connected">Connected to %s</string>
+    <string name="wifi_connecting">Connecting…</string>
+    <string name="wifi_disconnected">Disconnected</string>
+    <string name="wifi_disabled">WiFi disabled</string>
+    <string name="wifi_error">Error: %s</string>
+    <string name="signal_strength">Signal strength</string>
+    <string name="performance_metrics">Performance</string>
+    <string name="processing_time">Processing time</string>
+    <string name="frame_rate">Frame rate</string>
+    <string name="gyroscope">Gyroscope</string>
+    <string name="close">Close</string>
 
 </resources>

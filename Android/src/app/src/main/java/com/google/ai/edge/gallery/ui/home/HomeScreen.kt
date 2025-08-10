@@ -115,6 +115,7 @@ fun HomeScreen(
   navigateToTaskScreen: (Task) -> Unit,
   navigateToGeofenceManagement: () -> Unit,
   navigateToMessageBridge: () -> Unit,
+  navigateToCamera: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
   val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
@@ -193,6 +194,44 @@ fun HomeScreen(
       Column(
         modifier = Modifier.fillMaxSize()
       ) {
+        // Camera Feature Card
+        Card(
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .clickable { navigateToCamera() },
+          colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+          )
+        ) {
+          Row(
+            modifier = Modifier
+              .fillMaxWidth()
+              .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            Icon(
+              imageVector = Icons.Default.CameraAlt,
+              contentDescription = "Camera",
+              modifier = Modifier.size(32.dp),
+              tint = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Text(
+              text = "Camera & Sensors",
+              style = MaterialTheme.typography.titleMedium,
+              color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            Icon(
+              imageVector = Icons.Default.ArrowForwardIos,
+              contentDescription = "Open",
+              modifier = Modifier.size(16.dp),
+              tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+            )
+          }
+        }
+
         // Geofence Management Button
         Card(
           modifier = Modifier

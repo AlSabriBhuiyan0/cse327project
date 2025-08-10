@@ -21,23 +21,45 @@ data class PromptTemplate(val title: String, val description: String, val prompt
 data class Model(
   /** The name (for display purpose) of the model. */
   val name: String,
+  
+  /** The URL to download the model from. */
+  var downloadUrl: String = "",
+  
+  /** 
+   * The name of the downloaded model file.
+   * The final file path of the downloaded model will be:
+   * {context.getExternalFilesDir}/{normalizedName}/{version}/{downloadFileName}
+   */
+  var downloadFileName: String = "",
+  
+  /** The size of the model file in bytes. */
+  var fileSizeBytes: Long = 0,
+  
+  /** Whether the downloaded file is a zip archive. */
+  val isZipFile: Boolean = false,
+  
+  /** The directory to extract the zip file to (if isZipFile is true). */
+  val extractToDir: String = "",
+  
+  /** The access token for authenticated downloads. */
+  var accessToken: String? = null,
 
   /** The version of the model. */
   val version: String = "_",
 
-  /**
-   * The name of the downloaded model file.
-   *
-   * The final file path of the downloaded model will be:
-   * {context.getExternalFilesDir}/{normalizedName}/{version}/{downloadFileName}
+  /** 
+   * @deprecated Use downloadUrl instead.
+   * The URL to download the model from.
    */
-  val downloadFileName: String,
-
-  /** The URL to download the model from. */
-  val url: String,
-
-  /** The size of the model file in bytes. */
-  val sizeInBytes: Long,
+  @Deprecated("Use downloadUrl instead")
+  var url: String = "",
+  
+  /**
+   * @deprecated Use fileSizeBytes instead.
+   * The size of the model file in bytes.
+   */
+  @Deprecated("Use fileSizeBytes instead")
+  var sizeInBytes: Long = 0,
 
   /** A list of additional data files required by the model. */
   val extraDataFiles: List<ModelDataFile> = listOf(),
@@ -63,7 +85,7 @@ data class Model(
 
   /** Indicates whether the model is a zip file. */
   val isZip: Boolean = false,
-
+  
   /** The name of the directory to unzip the model to (if it's a zip file). */
   val unzipDir: String = "",
 
@@ -94,6 +116,20 @@ data class Model(
 ) {
   init {
     normalizedName = NORMALIZE_NAME_REGEX.replace(name, "_")
+    
+    // Backward compatibility for deprecated properties
+    if (downloadUrl.isEmpty() && url.isNotEmpty()) {
+      this.downloadUrl = url
+    }
+    
+    if (fileSizeBytes == 0L && sizeInBytes > 0) {
+      this.fileSizeBytes = sizeInBytes
+    }
+    
+    // Initialize totalBytes if not set
+    if (totalBytes == 0L) {
+      totalBytes = this.fileSizeBytes + extraDataFiles.sumOf { it.sizeInBytes }
+    }
   }
 
   fun preProcess() {
@@ -155,6 +191,69 @@ data class Model(
       valueType = valueType,
     )
   }
+  
+  /**
+   * Creates a copy of the model with the specified properties updated.
+   */
+  fun copy(
+    name: String = this.name,
+    downloadUrl: String = this.downloadUrl,
+    downloadFileName: String = this.downloadFileName,
+    fileSizeBytes: Long = this.fileSizeBytes,
+    isZipFile: Boolean = this.isZipFile,
+    extractToDir: String = this.extractToDir,
+    accessToken: String? = this.accessToken,
+    version: String = this.version,
+    url: String = this.url,
+    sizeInBytes: Long = this.sizeInBytes,
+    extraDataFiles: List<ModelDataFile> = this.extraDataFiles,
+    info: String = this.info,
+    learnMoreUrl: String = this.learnMoreUrl,
+    configs: List<Config> = this.configs,
+    showRunAgainButton: Boolean = this.showRunAgainButton,
+    showBenchmarkButton: Boolean = this.showBenchmarkButton,
+    isZip: Boolean = this.isZip,
+    unzipDir: String = this.unzipDir,
+    llmPromptTemplates: List<PromptTemplate> = this.llmPromptTemplates,
+    llmSupportImage: Boolean = this.llmSupportImage,
+    llmSupportAudio: Boolean = this.llmSupportAudio,
+    imported: Boolean = this.imported,
+    estimatedPeakMemoryInBytes: Long? = this.estimatedPeakMemoryInBytes
+  ): Model {
+    return Model(
+      name = name,
+      downloadUrl = downloadUrl,
+      downloadFileName = downloadFileName,
+      fileSizeBytes = fileSizeBytes,
+      isZipFile = isZipFile,
+      extractToDir = extractToDir,
+      accessToken = accessToken,
+      version = version,
+      url = url,
+      sizeInBytes = sizeInBytes,
+      extraDataFiles = extraDataFiles,
+      info = info,
+      learnMoreUrl = learnMoreUrl,
+      configs = configs,
+      showRunAgainButton = showRunAgainButton,
+      showBenchmarkButton = showBenchmarkButton,
+      isZip = isZip,
+      unzipDir = unzipDir,
+      llmPromptTemplates = llmPromptTemplates,
+      llmSupportImage = llmSupportImage,
+      llmSupportAudio = llmSupportAudio,
+      imported = imported,
+      estimatedPeakMemoryInBytes = estimatedPeakMemoryInBytes
+    ).apply {
+      // Copy over the internal state
+      this.normalizedName = this@Model.normalizedName
+      this.instance = this@Model.instance
+      this.initializing = this@Model.initializing
+      this.cleanUpAfterInit = this@Model.cleanUpAfterInit
+      this.configValues = this@Model.configValues.toMutableMap()
+      this.totalBytes = this@Model.totalBytes
+    }
+  }
 }
 
 enum class ModelDownloadStatusType {
@@ -173,7 +272,48 @@ data class ModelDownloadStatus(
   val errorMessage: String = "",
   val bytesPerSecond: Long = 0,
   val remainingMs: Long = 0,
-)
+  val retryCount: Int = 0,
+  val maxRetries: Int = 3,
+  val nextRetryDelayMs: Long = 0,
+  val isRetrying: Boolean = false,
+  val lastErrorTime: Long = 0
+) {
+  val progress: Float
+    get() = if (totalBytes > 0) {
+      (receivedBytes.toFloat() / totalBytes).coerceIn(0f, 1f)
+    } else {
+      0f
+    }
+    
+  val progressPercent: Int
+    get() = (progress * 100).toInt()
+    
+  val formattedRemainingTime: String
+    get() = when {
+      remainingMs <= 0 -> ""
+      remainingMs < 60_000 -> "< 1 min"
+      else -> {
+        val minutes = remainingMs / 60_000
+        "~$minutes min"
+      }
+    }
+    
+  val formattedSpeed: String
+    get() = if (bytesPerSecond > 0) {
+      "${formatFileSize(bytesPerSecond)}/s"
+    } else {
+      ""
+    }
+    
+  val formattedReceived: String
+    get() = formatFileSize(receivedBytes)
+    
+  val formattedTotal: String
+    get() = formatFileSize(totalBytes)
+    
+  val hasRetryInfo: Boolean
+    get() = retryCount > 0 && status == ModelDownloadStatusType.FAILED && maxRetries > 0
+}
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Configs.
